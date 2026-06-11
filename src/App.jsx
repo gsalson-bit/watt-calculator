@@ -324,7 +324,6 @@ function calcPower({ weight, bikeWeight, speed, gradient, crr, cda, rho, efficie
   const pGravity = totalMass * g * Math.sin(Math.atan(gradient / 100)) * vms;
   const pRolling = totalMass * g * Math.cos(Math.atan(gradient / 100)) * crr * vms;
   const pAero = 0.5 * rho * cda * vms * vms * vms;
-  const pMechLoss = (pGravity + pRolling + pAero) * (1 - efficiency);
   const pTotal = (pGravity + pRolling + pAero) / efficiency;
 
   return {
