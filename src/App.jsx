@@ -436,7 +436,7 @@ export default function App() {
               <div className="unit">kg</div>
             </div>
             <div className="field">
-              <label>Poids vélo</label>
+              <label>Poids vélo + equipement</label>
               <input type="number" value={raw.bikeWeight} onChange={e => set("bikeWeight", e.target.value)} />
               <div className="unit">kg</div>
             </div>
