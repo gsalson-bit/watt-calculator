@@ -308,15 +308,16 @@ function altitudeToRho(alt) {
 
 // Coggan & Allen power profile reference table (W/kg, hommes)
 // Durées de référence en secondes: 5s, 60s, 300s, 1200s (FTP ~20min)
+// Valeurs intermédiaires entre l'ancienne échelle (plus valorisante) et la stricte
 const COGGAN_DURATIONS = [5, 60, 300, 1200];
 const COGGAN_LEVELS = [
-  { label: "Débutant",        color: "#4b5563", bg: "#1e2230", values: [9.0, 5.5, 3.0, 2.5] },
-  { label: "Récréatif",          color: "#3b82f6", bg: "#0f1f3d", values: [10.5, 6.5, 3.6, 3.0] },
-  { label: "Sportif",         color: "#10b981", bg: "#062019", values: [12.5, 7.5, 4.2, 3.6] },
-  { label: "Régional",        color: "#f59e0b", bg: "#1f1505", values: [14.5, 8.7, 4.8, 4.2] },
-  { label: "National",          color: "#f97316", bg: "#1f0e03", values: [16.5, 10.0, 5.5, 4.8] },
-  { label: "Pro Conti", color: "#ef4444", bg: "#1f0505", values: [18.5, 11.5, 6.2, 5.6] },
-  { label: "World Tour",      color: "#a855f7", bg: "#1a0a2e", values: [21.5, 13.5, 7.2, 6.5] },
+  { label: "Débutant",        color: "#4b5563", bg: "#1e2230", values: [9.0, 5.55, 2.9, 2.3] },
+  { label: "Récréatif",       color: "#3b82f6", bg: "#0f1f3d", values: [10.75, 6.7, 3.5, 2.8] },
+  { label: "Sportif",         color: "#10b981", bg: "#062019", values: [13.0, 7.95, 4.2, 3.4] },
+  { label: "Avancé",          color: "#f59e0b", bg: "#1f1505", values: [15.0, 9.2, 4.9, 4.0] },
+  { label: "National",        color: "#f97316", bg: "#1f0e03", values: [16.65, 10.0, 5.25, 4.3] },
+  { label: "Pro Continental", color: "#ef4444", bg: "#1f0505", values: [18.5, 11.5, 6.0, 5.05] },
+  { label: "World Tour",      color: "#a855f7", bg: "#1a0a2e", values: [21.75, 13.25, 6.95, 5.9] },
 ];
 
 // Interpolate the W/kg threshold for a given level at a given duration (log scale on duration)
@@ -342,6 +343,15 @@ function getCategoryByDuration(wpkg, durationSec) {
     else break;
   }
   return matched;
+}
+
+// Returns a 0-1 position of wpkg on the full Coggan scale at a given duration
+function getScalePosition(wpkg, durationSec) {
+  const thresholds = COGGAN_LEVELS.map(l => thresholdAt(l.values, durationSec));
+  const min = thresholds[0];
+  const max = thresholds[thresholds.length - 1] * 1.15; // small headroom above World Tour
+  const clamped = Math.min(Math.max(wpkg, min), max);
+  return (clamped - min) / (max - min);
 }
 
 function calcPower({ weight, bikeWeight, speed, gradient, crr, cda, rho, efficiency }) {
@@ -432,6 +442,7 @@ export default function App() {
   const hasDistance = distanceKm > 0 && displaySpeed > 0;
   const durationSec = hasDistance ? (distanceKm / displaySpeed) * 3600 : null;
   const cat = hasDistance ? getCategoryByDuration(wpkg, durationSec) : null;
+  const scalePos = hasDistance ? getScalePosition(wpkg, durationSec) : null;
 
   const total = result.gravity + result.rolling + result.aero;
   const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
@@ -556,9 +567,38 @@ export default function App() {
                 {wpkg.toFixed(2)} W/kg · {displaySpeed} km/h
               </div>
               {cat ? (
-                <span className="category-badge" style={{ color: cat.color, background: cat.bg }}>
-                  {cat.label}
-                </span>
+                <>
+                  <span className="category-badge" style={{ color: cat.color, background: cat.bg }}>
+                    {cat.label}
+                  </span>
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ position: "relative", height: 8, borderRadius: 4, overflow: "visible",
+                      background: `linear-gradient(90deg, ${COGGAN_LEVELS.map(l => l.color).join(", ")})` }}>
+                      <div style={{
+                        position: "absolute",
+                        left: `calc(${scalePos * 100}% - 6px)`,
+                        top: -4,
+                        width: 0, height: 0,
+                        borderLeft: "6px solid transparent",
+                        borderRight: "6px solid transparent",
+                        borderTop: "8px solid #fff",
+                        filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))",
+                      }} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                      {COGGAN_LEVELS.map((l, i) => (
+                        <span key={l.label} style={{
+                          fontSize: 8, color: l.label === cat.label ? "#fff" : "#4b5563",
+                          fontWeight: l.label === cat.label ? 700 : 400,
+                          textAlign: i === 0 ? "left" : i === COGGAN_LEVELS.length - 1 ? "right" : "center",
+                          flex: 1,
+                        }}>
+                          {l.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div style={{ fontSize: 11, color: "#ff5000", marginTop: 8, fontStyle: "italic" }}>
                   Renseigne la distance du segment pour estimer le niveau
