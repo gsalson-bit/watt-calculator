@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const GOOGLE_FONT = `@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap');`;
 
@@ -306,16 +306,6 @@ function altitudeToRho(alt) {
   return 1.225 * Math.pow(1 - 0.0000226 * Math.max(0, alt), 4.256);
 }
 
-function getCategory(wpkg) {
-  if (wpkg < 1.5) return { label: "Débutant", color: "#4b5563", bg: "#1e2230" };
-  if (wpkg < 2.5) return { label: "Récréatif", color: "#3b82f6", bg: "#0f1f3d" };
-  if (wpkg < 3.5) return { label: "Sportif", color: "#10b981", bg: "#062019" };
-  if (wpkg < 4.5) return { label: "Amateur avancé", color: "#f59e0b", bg: "#1f1505" };
-  if (wpkg < 5.5) return { label: "Semi-pro", color: "#f97316", bg: "#1f0e03" };
-  if (wpkg < 6.5) return { label: "Pro", color: "#ef4444", bg: "#1f0505" };
-  return { label: "Élite mondiale", color: "#a855f7", bg: "#1a0a2e" };
-}
-
 // Coggan & Allen power profile reference table (W/kg, hommes)
 // Durées de référence en secondes: 5s, 60s, 300s, 1200s (FTP ~20min)
 const COGGAN_DURATIONS = [5, 60, 300, 1200];
@@ -323,8 +313,8 @@ const COGGAN_LEVELS = [
   { label: "Débutant",        color: "#4b5563", bg: "#1e2230", values: [9.0, 5.5, 3.0, 2.5] },
   { label: "Récréatif",          color: "#3b82f6", bg: "#0f1f3d", values: [10.5, 6.5, 3.6, 3.0] },
   { label: "Sportif",         color: "#10b981", bg: "#062019", values: [12.5, 7.5, 4.2, 3.6] },
-  { label: "National",        color: "#f59e0b", bg: "#1f1505", values: [14.5, 8.7, 4.8, 4.2] },
-  { label: "Avancé",          color: "#f97316", bg: "#1f0e03", values: [16.5, 10.0, 5.5, 4.8] },
+  { label: "Régional",        color: "#f59e0b", bg: "#1f1505", values: [14.5, 8.7, 4.8, 4.2] },
+  { label: "National",          color: "#f97316", bg: "#1f0e03", values: [16.5, 10.0, 5.5, 4.8] },
   { label: "Pro Conti", color: "#ef4444", bg: "#1f0505", values: [18.5, 11.5, 6.2, 5.6] },
   { label: "World Tour",      color: "#a855f7", bg: "#1a0a2e", values: [21.5, 13.5, 7.2, 6.5] },
 ];
@@ -362,7 +352,6 @@ function calcPower({ weight, bikeWeight, speed, gradient, crr, cda, rho, efficie
   const pGravity = totalMass * g * Math.sin(Math.atan(gradient / 100)) * vms;
   const pRolling = totalMass * g * Math.cos(Math.atan(gradient / 100)) * crr * vms;
   const pAero = 0.5 * rho * cda * vms * vms * vms;
-  const pMechLoss = (pGravity + pRolling + pAero) * (1 - efficiency);
   const pTotal = (pGravity + pRolling + pAero) / efficiency;
 
   return {
