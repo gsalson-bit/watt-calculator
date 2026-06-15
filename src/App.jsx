@@ -1,4 +1,4 @@
-import { useState, } from "react";
+import { useState, useEffect } from "react";
 
 const GOOGLE_FONT = `@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap');`;
 
@@ -316,6 +316,44 @@ function getCategory(wpkg) {
   return { label: "Élite mondiale", color: "#a855f7", bg: "#1a0a2e" };
 }
 
+// Coggan & Allen power profile reference table (W/kg, hommes)
+// Durées de référence en secondes: 5s, 60s, 300s, 1200s (FTP ~20min)
+const COGGAN_DURATIONS = [5, 60, 300, 1200];
+const COGGAN_LEVELS = [
+  { label: "Débutant",        color: "#4b5563", bg: "#1e2230", values: [9.0, 5.5, 3.0, 2.5] },
+  { label: "Récréatif",          color: "#3b82f6", bg: "#0f1f3d", values: [10.5, 6.5, 3.6, 3.0] },
+  { label: "Sportif",         color: "#10b981", bg: "#062019", values: [12.5, 7.5, 4.2, 3.6] },
+  { label: "National",        color: "#f59e0b", bg: "#1f1505", values: [14.5, 8.7, 4.8, 4.2] },
+  { label: "Avancé",          color: "#f97316", bg: "#1f0e03", values: [16.5, 10.0, 5.5, 4.8] },
+  { label: "Pro Conti", color: "#ef4444", bg: "#1f0505", values: [18.5, 11.5, 6.2, 5.6] },
+  { label: "World Tour",      color: "#a855f7", bg: "#1a0a2e", values: [21.5, 13.5, 7.2, 6.5] },
+];
+
+// Interpolate the W/kg threshold for a given level at a given duration (log scale on duration)
+function thresholdAt(levelValues, durationSec) {
+  const d = Math.min(Math.max(durationSec, COGGAN_DURATIONS[0]), COGGAN_DURATIONS[COGGAN_DURATIONS.length - 1]);
+  const logD = Math.log(d);
+  for (let i = 0; i < COGGAN_DURATIONS.length - 1; i++) {
+    const d0 = COGGAN_DURATIONS[i], d1 = COGGAN_DURATIONS[i + 1];
+    if (d >= d0 && d <= d1) {
+      const t = (logD - Math.log(d0)) / (Math.log(d1) - Math.log(d0));
+      return levelValues[i] + t * (levelValues[i + 1] - levelValues[i]);
+    }
+  }
+  return levelValues[levelValues.length - 1];
+}
+
+// Returns category based on W/kg AND effort duration, using Coggan power profile
+function getCategoryByDuration(wpkg, durationSec) {
+  let matched = COGGAN_LEVELS[0];
+  for (const level of COGGAN_LEVELS) {
+    const threshold = thresholdAt(level.values, durationSec);
+    if (wpkg >= threshold) matched = level;
+    else break;
+  }
+  return matched;
+}
+
 function calcPower({ weight, bikeWeight, speed, gradient, crr, cda, rho, efficiency }) {
   const totalMass = weight + bikeWeight;
   const g = 9.81;
@@ -324,6 +362,7 @@ function calcPower({ weight, bikeWeight, speed, gradient, crr, cda, rho, efficie
   const pGravity = totalMass * g * Math.sin(Math.atan(gradient / 100)) * vms;
   const pRolling = totalMass * g * Math.cos(Math.atan(gradient / 100)) * crr * vms;
   const pAero = 0.5 * rho * cda * vms * vms * vms;
+  const pMechLoss = (pGravity + pRolling + pAero) * (1 - efficiency);
   const pTotal = (pGravity + pRolling + pAero) / efficiency;
 
   return {
@@ -399,7 +438,11 @@ export default function App() {
   const displaySpeed = mode === "power" ? inputs.speed : speedResult;
 
   const wpkg = displayPower / inputs.weight;
-  const cat = getCategory(wpkg);
+
+  const distanceKm = parseFloat(raw.distance);
+  const hasDistance = distanceKm > 0 && displaySpeed > 0;
+  const durationSec = hasDistance ? (distanceKm / displaySpeed) * 3600 : null;
+  const cat = hasDistance ? getCategoryByDuration(wpkg, durationSec) : null;
 
   const total = result.gravity + result.rolling + result.aero;
   const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
@@ -419,27 +462,26 @@ export default function App() {
         {/* Mode tabs */}
         <div className="tabs">
           <button className={`tab${mode === "power" ? " active" : ""}`} onClick={() => setMode("power")}>
-            → Watts requis
+            → Calcul watts
           </button>
           <button className={`tab${mode === "speed" ? " active" : ""}`} onClick={() => setMode("speed")}>
-            → Vitesse cible
+            → Calcul vitesse
           </button>
         </div>
 
         {/* Rider */}
         <div className="card">
           <div className="card-title">🚴 Cycliste & vélo</div>
-          <div className="grid-2">
-            <div className="field">
-              <label>Poids cycliste</label>
-              <input type="number" value={raw.weight} onChange={e => set("weight", e.target.value)} />
-              <div className="unit">kg</div>
-            </div>
-            <div className="field">
-              <label>Poids vélo + equipement</label>
-              <input type="number" value={raw.bikeWeight} onChange={e => set("bikeWeight", e.target.value)} />
-              <div className="unit">kg</div>
-            </div>
+          <div className="field">
+            <label>Poids cycliste</label>
+            <input type="number" value={raw.weight} onChange={e => set("weight", e.target.value)} />
+            <div className="unit">kg</div>
+          </div>
+
+          <div className="field" style={{ marginTop: 12 }}>
+            <label>Poids vélo + équipement (gourdes, casque, chaussures…)</label>
+            <input type="number" value={raw.bikeWeight} onChange={e => set("bikeWeight", e.target.value)} />
+            <div className="unit">kg</div>
           </div>
         </div>
 
@@ -524,9 +566,15 @@ export default function App() {
               <div className="result-sub">
                 {wpkg.toFixed(2)} W/kg · {displaySpeed} km/h
               </div>
-              <span className="category-badge" style={{ color: cat.color, background: cat.bg }}>
-                {cat.label}
-              </span>
+              {cat ? (
+                <span className="category-badge" style={{ color: cat.color, background: cat.bg }}>
+                  {cat.label}
+                </span>
+              ) : (
+                <div style={{ fontSize: 11, color: "#ff5000", marginTop: 8, fontStyle: "italic" }}>
+                  Renseigne la distance du segment pour estimer le niveau
+                </div>
+              )}
             </div>
 
             <div className="result-card">
@@ -593,7 +641,7 @@ export default function App() {
             const dist = parseFloat(raw.distance);
             if (!dist || dist <= 0 || displaySpeed <= 0) return (
               <div style={{ color: "#4b5563", fontSize: 13, textAlign: "center", padding: "10px 0" }}>
-                Renseigne une distance pour estimer le temps
+                Renseigne une distance pour estimer le temps et le niveau
               </div>
             );
             const totalSec = (dist / displaySpeed) * 3600;
@@ -639,8 +687,6 @@ export default function App() {
             );
           })()}
         </div>
-
-        <div className="tip">Les pertes mécaniques (drivetrain) sont modélisées à {((1 - inputs.efficiency) * 100).toFixed(1)}%</div>
       </div>
     </>
   );
